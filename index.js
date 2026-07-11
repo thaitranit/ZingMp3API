@@ -17,7 +17,11 @@ app.get('/api/stream', async (req, res) => {
         const data = await Zing.getStreaming(id);
         return res.json(data);
     } catch (error) {
-        return res.status(500).json({ error: error.message });
+        // Thay vì chỉ gửi error.message, trả về toàn bộ object lỗi để xem Zing báo gì
+        return res.status(500).json({ 
+            message: error.message || "Internal Server Error", 
+            details: error 
+        });
     }
 });
 
