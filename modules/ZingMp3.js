@@ -1,17 +1,16 @@
 let request = require('request-promise');
-const { FileCookieStore } = require('tough-cookie-file-store');
-const fs = require('fs');
+// Thay thế FileStore bằng MemoryCookieStore có sẵn của tough-cookie
+const { MemoryCookieStore } = require('tough-cookie'); 
 const crypto = require('crypto');
 
 const URL_API = 'https://zingmp3.vn';
-// Bộ Key đồng bộ đi kèm với thuật toán mã hóa v2 mới nhất của Zing
 const API_KEY = 'X5051a9fa73c49d115490175bfa65910';
 const SECRET_KEY = 'uYwrite49h9aY6403WAsFixscbHwbb2i';
 
-const cookiePath = 'ZingMp3.json';
-if (!fs.existsSync(cookiePath)) fs.closeSync(fs.openSync(cookiePath, 'w'));
+// Xóa bỏ hoàn toàn các dòng đọc/ghi file fs.existsSync(cookiePath)...
 
-let cookiejar = request.jar(new FileCookieStore(cookiePath));
+// Khởi tạo cookie lưu hoàn toàn trên RAM tạm thời, không ghi xuống đĩa
+let cookiejar = request.jar(new MemoryCookieStore());
 
 request = request.defaults({
     baseUrl: URL_API,
@@ -26,6 +25,8 @@ request = request.defaults({
     json: true,
     jar: cookiejar,
 });
+
+// Giữ nguyên toàn bộ phần Class ZingMp3 ở phía dưới...
 
 class ZingMp3 {
     constructor() {
