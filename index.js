@@ -31,7 +31,7 @@ function hashParam(path, id = '') {
     return { ctime, sig };
 }
 
-// 1. Endpoint lấy stream nhạc chuẩn v2
+// Endpoint lấy stream nhạc chuẩn v2 - Đã được tối ưu trả thẳng link
 app.get('/api/stream', async (req, res) => {
     try {
         const id = req.query.id;
@@ -47,7 +47,19 @@ app.get('/api/stream', async (req, res) => {
                 'Referer': 'https://zingmp3.vn/'
             }
         });
-        return res.json(response.data);
+
+        // Kiểm tra nếu Zing trả về link nhạc hợp lệ
+        if (response.data && response.data.err === 0 && response.data.data) {
+            const streamData = response.data.data;
+            // Lấy link 128kbps hoặc link đầu tiên tìm thấy
+            const audioUrl = streamData["128"] || streamData["320"] || Object.values(streamData)[0];
+            
+            // Ép trả về đúng định dạng text/url hoặc object link đơn giản tùy theo Frontend của bạn
+            return res.json({ url: audioUrl }); 
+            // Nếu Frontend của bạn đọc chuỗi thuần, hãy sửa thành: return res.send(audioUrl);
+        }
+
+        return res.status(400).json({ error: 'Không lấy được luồng nhạc từ Zing', details: response.data });
     } catch (error) {
         return res.status(500).json({ error: error.message });
     }
