@@ -4,9 +4,8 @@ const CryptoJS = require('crypto-js');
 const app = express();
 
 const URL_API = 'https://zingmp3.vn';
-const API_KEY = 'X5051a9fa73c49d115490175bfa65910';
-const SECRET_KEY = 'uYwrite49h9aY6403WAsFixscbHwbb2i';
-
+const API_KEY = '382f183021f1e626e2e54284f25963e6';
+const SECRET_KEY = '2aa2d1c561e809b267f3638c4a307aab';
 app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
