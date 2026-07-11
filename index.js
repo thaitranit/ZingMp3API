@@ -30,34 +30,25 @@ function hashParam(path, id = '') {
     return { ctime, sig };
 }
 
-// Endpoint lấy stream nhạc bằng cổng Mobile - Bypass hoàn toàn hệ thống chữ ký sig
+// Endpoint lấy stream nhạc chuẩn v2 - Đã sửa lỗi chữ ký
 app.get('/api/stream', async (req, res) => {
     try {
         const id = req.query.id;
         if (!id) return res.status(400).json({ error: 'Missing id' });
 
-        // Sử dụng cổng mobile API chính thức của Zing, chỉ cần truyền ID bài hát
-        const mobileApiUrl = `http://api.mp3.zing.vn/api/mobile/song/getsonginfo?requestdata={"id":"${id}"}`;
+        const path = '/api/v2/song/get/streaming';
+        const { ctime, sig } = hashParam(path, id);
 
-        const response = await axios.get(mobileApiUrl, {
+        const response = await axios.get(`${URL_API}${path}`, {
+            params: { id, apiKey: API_KEY, ctime, sig },
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
+                'Referer': 'https://zingmp3.vn/'
             }
         });
 
-        // Kiểm tra cấu trúc dữ liệu trả về từ cổng Mobile
-        if (response.data && response.data.source) {
-            const sourceData = response.data.source;
-            // Lấy link phát nhạc chất lượng chuẩn 128kbps trực tiếp từ CDN
-            const audioUrl = sourceData["128"] || sourceData["320"] || Object.values(sourceData)[0];
-            
-            if (audioUrl) {
-                // Trả về đúng cấu trúc object chứa url để Frontend của bạn tiếp nhận
-                return res.json({ url: audioUrl });
-            }
-        }
-
-        return res.status(404).json({ error: 'Bài hát dính bản quyền hoặc không tìm thấy nguồn phát' });
+        // Trả thẳng dữ liệu gốc từ Zing về cho Frontend tự bóc tách link nhạc
+        return res.json(response.data);
     } catch (error) {
         return res.status(500).json({ error: error.message });
     }
