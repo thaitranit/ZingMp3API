@@ -34,7 +34,7 @@ function hashParam(path, id = '') {
 app.get('/api/stream', async (req, res) => {
     try {
         const id = req.query.id;
-        if (!id) return res.status(400).json({ error: 'Missing id' });
+        if (!id) return res.status(400).send('Missing id');
 
         const path = '/api/v2/song/get/streaming';
         const { ctime, sig } = hashParam(path, id);
@@ -47,34 +47,21 @@ app.get('/api/stream', async (req, res) => {
             }
         });
 
-        // 1. Nếu Zing trả về dữ liệu chuẩn (Bài hát miễn phí) -> Trả nguyên vẹn về cho Frontend
+        // 1. Nếu lấy được link nhạc thật của Zing
         if (response.data && response.data.err === 0 && response.data.data && response.data.data["128"]) {
-            return res.json(response.data);
+            if (response.data.data["128"] !== "VIP") {
+                // Đẩy thẳng luồng âm thanh .mp3 về cho ReactPlayer
+                return res.redirect(response.data.data["128"]); 
+            }
         }
 
-        // 2. Nếu dính VIP/Bản quyền hoặc rỗng -> Giả lập đúng cấu trúc JSON thô của Zing kèm link dự phòng
-        const backupUrl = `https://api.mp3.zing.vn/api/streaming/audio/${id}/128`;
-        return res.json({
-            err: 0,
-            msg: "Success",
-            data: {
-                "128": backupUrl,
-                "320": backupUrl
-            }
-        });
+        // 2. Nếu dính VIP/Bản quyền -> Redirect sang luồng dự phòng mp3
+        return res.redirect(`https://api.mp3.zing.vn/api/streaming/audio/${id}/128`);
 
     } catch (error) {
-        // Dự phòng khi sập kết nối, vẫn giả lập cấu trúc Zing thô để Frontend không bị crash
+        // Lỗi sập kết nối cũng đẩy thẳng về luồng mp3 dự phòng để cứu app
         const id = req.query.id;
-        const backupUrl = `https://api.mp3.zing.vn/api/streaming/audio/${id}/128`;
-        return res.json({
-            err: 0,
-            msg: "Success",
-            data: {
-                "128": backupUrl,
-                "320": backupUrl
-            }
-        });
+        return res.redirect(`https://api.mp3.zing.vn/api/streaming/audio/${id}/128`);
     }
 });
 
