@@ -1,91 +1,85 @@
 const express = require('express');
-const Zing = require('./modules/ZingMp3');
+const axios = require('axios');
+const CryptoJS = require('crypto-js');
 const app = express();
 
-// CORS Middleware cho phép Frontend kết nối công khai
+const URL_API = 'https://zingmp3.vn';
+const API_KEY = 'X5051a9fa73c49d115490175bfa65910';
+const SECRET_KEY = 'uYwrite49h9aY6403WAsFixscbHwbb2i';
+
 app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
     next();
 });
 
-// 1. Route lấy stream nhạc (Đã có từ trước)
+// Hàm tạo chữ ký bảo mật (sig) thế hệ mới
+function getHash256(str) {
+    return CryptoJS.SHA256(str).toString(CryptoJS.enc.Hex);
+}
+
+function getHmac512(str, key) {
+    return CryptoJS.HmacSHA512(str, key).toString(CryptoJS.enc.Hex);
+}
+
+function hashParam(path, id = '') {
+    const ctime = Math.floor(Date.now() / 1000);
+    let strHash = `ctime=${ctime}`;
+    if (id) strHash += `id=${id}`;
+    const hash256 = getHash256(strHash);
+    const sig = getHmac512(path + hash256, SECRET_KEY);
+    return { ctime, sig };
+}
+
+// 1. Endpoint lấy stream nhạc chuẩn v2
 app.get('/api/stream', async (req, res) => {
     try {
         const id = req.query.id;
         if (!id) return res.status(400).json({ error: 'Missing id' });
-        const data = await Zing.getStreaming(id);
-        return res.json(data);
-    } catch (error) {
-        // Thay vì chỉ gửi error.message, trả về toàn bộ object lỗi để xem Zing báo gì
-        return res.status(500).json({ 
-            message: error.message || "Internal Server Error", 
-            details: error 
+
+        const path = '/api/v2/song/get/streaming';
+        const { ctime, sig } = hashParam(path, id);
+
+        const response = await axios.get(`${URL_API}${path}`, {
+            params: { id, apiKey: API_KEY, ctime, sig },
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': 'https://zingmp3.vn/'
+            }
         });
+        return res.json(response.data);
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
     }
 });
 
-// 2. Route lấy chi tiết Album / Playlist (Sửa lỗi trang Album hiện tại)
+// 2. Endpoint lấy chi tiết Playlist / Album
 app.get('/api/detailById', async (req, res) => {
     try {
         const id = req.query.id;
         if (!id) return res.status(400).json({ error: 'Missing id' });
-        const data = await Zing.getDetailPlaylist(id);
-        return res.json(data);
-    } catch (error) {
-        return res.status(500).json({ error: error.message });
-    }
-});
 
-// 3. Route lấy thông tin bài hát
-app.get('/api/song', async (req, res) => {
-    try {
-        const id = req.query.id;
-        if (!id) return res.status(400).json({ error: 'Missing id' });
-        const data = await Zing.getSong(id);
-        return res.json(data);
-    } catch (error) {
-        return res.status(500).json({ error: error.message });
-    }
-});
+        const path = '/api/v2/page/get/playlist';
+        const { ctime, sig } = hashParam(path, id);
 
-// 4. Route lấy Trang Chủ (Home / New Release)
-app.get('/api/home', async (req, res) => {
-    try {
-        const data = await Zing.getHome();
-        return res.json(data);
-    } catch (error) {
-        return res.status(500).json({ error: error.message });
-    }
-});
-
-// 5. Route lấy Top 100
-app.get('/api/top100', async (req, res) => {
-    try {
-        const data = await Zing.getTop100();
-        return res.json(data);
-    } catch (error) {
-        return res.status(500).json({ error: error.message });
-    }
-});
-
-// 6. Route Tìm kiếm
-app.get('/api/search', async (req, res) => {
-    try {
-        const keyword = req.query.keyword;
-        if (!keyword) return res.status(400).json({ error: 'Missing keyword' });
-        const data = await Zing.search(keyword);
-        return res.json(data);
+        const response = await axios.get(`${URL_API}${path}`, {
+            params: { id, apiKey: API_KEY, ctime, sig },
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': 'https://zingmp3.vn/'
+            }
+        });
+        return res.json(response.data);
     } catch (error) {
         return res.status(500).json({ error: error.message });
     }
 });
 
 app.get('/', (req, res) => {
-    res.send('ZingMP3 API Server Full Routes is Running!');
+    res.send('ZingMP3 Serverless API V2 is Running perfectly!');
 });
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+    console.log(`Server running on port ${PORT}`);
 });
