@@ -31,35 +31,34 @@ function hashParam(path, id = '') {
     return { ctime, sig };
 }
 
-// Endpoint lấy stream nhạc chuẩn v2 - Đã được tối ưu trả thẳng link
+// Endpoint lấy stream nhạc bằng cổng Mobile - Bypass hoàn toàn hệ thống chữ ký sig
 app.get('/api/stream', async (req, res) => {
     try {
         const id = req.query.id;
         if (!id) return res.status(400).json({ error: 'Missing id' });
 
-        const path = '/api/v2/song/get/streaming';
-        const { ctime, sig } = hashParam(path, id);
+        // Sử dụng cổng mobile API chính thức của Zing, chỉ cần truyền ID bài hát
+        const mobileApiUrl = `http://api.mp3.zing.vn/api/mobile/song/getsonginfo?requestdata={"id":"${id}"}`;
 
-        const response = await axios.get(`${URL_API}${path}`, {
-            params: { id, apiKey: API_KEY, ctime, sig },
+        const response = await axios.get(mobileApiUrl, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Referer': 'https://zingmp3.vn/'
+                'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36',
             }
         });
 
-        // Kiểm tra nếu Zing trả về link nhạc hợp lệ
-        if (response.data && response.data.err === 0 && response.data.data) {
-            const streamData = response.data.data;
-            // Lấy link 128kbps hoặc link đầu tiên tìm thấy
-            const audioUrl = streamData["128"] || streamData["320"] || Object.values(streamData)[0];
+        // Kiểm tra cấu trúc dữ liệu trả về từ cổng Mobile
+        if (response.data && response.data.source) {
+            const sourceData = response.data.source;
+            // Lấy link phát nhạc chất lượng chuẩn 128kbps trực tiếp từ CDN
+            const audioUrl = sourceData["128"] || sourceData["320"] || Object.values(sourceData)[0];
             
-            // Ép trả về đúng định dạng text/url hoặc object link đơn giản tùy theo Frontend của bạn
-            return res.json({ url: audioUrl }); 
-            // Nếu Frontend của bạn đọc chuỗi thuần, hãy sửa thành: return res.send(audioUrl);
+            if (audioUrl) {
+                // Trả về đúng cấu trúc object chứa url để Frontend của bạn tiếp nhận
+                return res.json({ url: audioUrl });
+            }
         }
 
-        return res.status(400).json({ error: 'Không lấy được luồng nhạc từ Zing', details: response.data });
+        return res.status(404).json({ error: 'Bài hát dính bản quyền hoặc không tìm thấy nguồn phát' });
     } catch (error) {
         return res.status(500).json({ error: error.message });
     }
