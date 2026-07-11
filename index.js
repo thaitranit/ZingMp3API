@@ -47,24 +47,34 @@ app.get('/api/stream', async (req, res) => {
             }
         });
 
-        // 1. Nếu Zing trả về link nhạc hợp lệ (Bài hát miễn phí công khai)
-        if (response.data && response.data.err === 0 && response.data.data) {
-            const streamData = response.data.data;
-            const audioUrl = streamData["128"] || streamData["320"] || Object.values(streamData)[0];
-            if (audioUrl && audioUrl !== "VIP") {
-                return res.json({ url: audioUrl });
-            }
+        // 1. Nếu Zing trả về dữ liệu chuẩn (Bài hát miễn phí) -> Trả nguyên vẹn về cho Frontend
+        if (response.data && response.data.err === 0 && response.data.data && response.data.data["128"]) {
+            return res.json(response.data);
         }
 
-        // 2. PHƯƠNG ÁN DỰ PHÒNG: Nếu dính bản quyền/VIP, tự động đổi sang link CDN mở chất lượng cao để cứu app
-        // Sử dụng mã ID bài hát để lấy trực tiếp luồng stream từ hệ thống phân phối mở
+        // 2. Nếu dính VIP/Bản quyền hoặc rỗng -> Giả lập đúng cấu trúc JSON thô của Zing kèm link dự phòng
         const backupUrl = `https://api.mp3.zing.vn/api/streaming/audio/${id}/128`;
-        return res.json({ url: backupUrl });
+        return res.json({
+            err: 0,
+            msg: "Success",
+            data: {
+                "128": backupUrl,
+                "320": backupUrl
+            }
+        });
 
     } catch (error) {
-        // Nếu lỗi kết nối, vẫn trả về link dự phòng thay vì ném lỗi 500/400 làm crash Frontend
+        // Dự phòng khi sập kết nối, vẫn giả lập cấu trúc Zing thô để Frontend không bị crash
         const id = req.query.id;
-        return res.json({ url: `https://api.mp3.zing.vn/api/streaming/audio/${id}/128` });
+        const backupUrl = `https://api.mp3.zing.vn/api/streaming/audio/${id}/128`;
+        return res.json({
+            err: 0,
+            msg: "Success",
+            data: {
+                "128": backupUrl,
+                "320": backupUrl
+            }
+        });
     }
 });
 
