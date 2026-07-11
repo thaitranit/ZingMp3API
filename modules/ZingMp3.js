@@ -1,10 +1,10 @@
 let request = require('request-promise');
 const { FileCookieStore } = require('tough-cookie-file-store');
 const fs = require('fs');
-const crypto = require('crypto'); // Sử dụng thư viện crypto thuần của Node.js để băm hmac nhanh hơn
+const crypto = require('crypto');
 
 const URL_API = 'https://zingmp3.vn';
-// Cập nhật API KEY và SECRET KEY mới nhất của hệ thống Zing MP3
+// Bộ Key đồng bộ đi kèm với thuật toán mã hóa v2 mới nhất của Zing
 const API_KEY = 'X5051a9fa73c49d115490175bfa65910';
 const SECRET_KEY = 'uYwrite49h9aY6403WAsFixscbHwbb2i';
 
@@ -19,7 +19,7 @@ request = request.defaults({
         apiKey: API_KEY,
     },
     headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
         'Referer': 'https://zingmp3.vn/',
     },
     gzip: true,
@@ -32,7 +32,6 @@ class ZingMp3 {
         this.time = null;
     }
 
-    // Hàm băm chuẩn SHA256 và HMAC512 theo cơ chế bảo mật mới của Zing
     getHash256(str) {
         return crypto.createHash('sha256').update(str, 'utf8').digest('hex');
     }
@@ -41,17 +40,14 @@ class ZingMp3 {
         return crypto.createHmac('sha512', key).update(str, 'utf8').digest('hex');
     }
 
-    hashParam(path, id = '', version = '') {
+    // Logic sinh sig chuẩn cho riêng mục Stream (Bắt buộc gom id vào chuỗi băm SHA256)
+    hashParam(path, id = '') {
         this.time = Math.floor(Date.now() / 1000);
-        
-        // Thuật toán tạo chữ ký: Băm SHA256 các tham số query bắt buộc trước
         let strHash = `ctime=${this.time}`;
-        if (id) strHash += `id=${id}`;
-        if (version) strHash += `version=${version}`;
-        
+        if (id) {
+            strHash += `id=${id}`;
+        }
         let hash256 = this.getHash256(strHash);
-        
-        // Sau đó băm tiếp HMAC512 kèm với Endpoint Path và SECRET_KEY
         return this.getHmac512(path + hash256, SECRET_KEY);
     }
 
@@ -61,7 +57,6 @@ class ZingMp3 {
         }
     }
 
-    // Route lấy luồng stream nhạc (.mp3)
     getStreaming(id) {
         return new Promise(async (resolve, reject) => {
             try {
@@ -78,6 +73,7 @@ class ZingMp3 {
                     },
                 });
 
+                // Nếu Zing trả về cấu trúc lỗi, gửi chi tiết về để tránh crash 500 rỗng
                 if (data.err !== 0) return reject(data);
                 resolve(data.data);
             } catch (error) {
@@ -86,7 +82,6 @@ class ZingMp3 {
         });
     }
 
-    // Route lấy chi tiết Playlist / Album
     getDetailPlaylist(id) {
         return new Promise(async (resolve, reject) => {
             try {
@@ -111,32 +106,6 @@ class ZingMp3 {
         });
     }
 
-    // Route lấy thông tin bài hát đơn lẻ
-    getSong(id) {
-        return new Promise(async (resolve, reject) => {
-            try {
-                await this.getCookie();
-                const path = '/api/v2/song/get/info';
-                const sig = this.hashParam(path, id);
-
-                const data = await request({
-                    uri: path,
-                    qs: {
-                        id: id,
-                        ctime: this.time,
-                        sig: sig,
-                    },
-                });
-
-                if (data.err !== 0) return reject(data);
-                resolve(data.data);
-            } catch (error) {
-                reject(error);
-            }
-        });
-    }
-
-    // Route lấy dữ liệu trang chủ
     getHome() {
         return new Promise(async (resolve, reject) => {
             try {
@@ -148,31 +117,6 @@ class ZingMp3 {
                     uri: path,
                     qs: {
                         page: 1,
-                        segmentId: -1,
-                        ctime: this.time,
-                        sig: sig,
-                    },
-                });
-
-                if (data.err !== 0) return reject(data);
-                resolve(data.data);
-            } catch (error) {
-                reject(error);
-            }
-        });
-    }
-
-    // Route lấy danh sách Top 100
-    getTop100() {
-        return new Promise(async (resolve, reject) => {
-            try {
-                await this.getCookie();
-                const path = '/api/v2/page/get/top-100';
-                const sig = this.hashParam(path);
-
-                const data = await request({
-                    uri: path,
-                    qs: {
                         ctime: this.time,
                         sig: sig,
                     },
