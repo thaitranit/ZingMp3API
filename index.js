@@ -6,13 +6,13 @@ const app = express();
 const URL_API = 'https://zingmp3.vn';
 const API_KEY = '382f183021f1e626e2e54284f25963e6';
 const SECRET_KEY = '2aa2d1c561e809b267f3638c4a307aab';
+
 app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
     next();
 });
 
-// Hàm tạo chữ ký bảo mật (sig) thế hệ mới
 function getHash256(str) {
     return CryptoJS.SHA256(str).toString(CryptoJS.enc.Hex);
 }
@@ -30,51 +30,26 @@ function hashParam(path, id = '') {
     return { ctime, sig };
 }
 
-// Endpoint lấy stream nhạc chuẩn v2 - Đã sửa lỗi chữ ký
+// 1. Endpoint lấy stream nhạc (Redirect trực tiếp luồng mp3 để ReactPlayer đọc được)
 app.get('/api/stream', async (req, res) => {
     try {
         const id = req.query.id;
         if (!id) return res.status(400).send('Missing id');
 
-        // Gọi sang API mở chuyên dùng để parse link nhạc không bị chặn IP
         const publicApi = `https://api-zingmp3.vercel.app/api/v1/stream?id=${id}`;
         const response = await axios.get(publicApi);
 
         if (response.data && response.data.err === 0 && response.data.data) {
             const streamData = response.data.data;
-            // Lấy link nhạc 128 hoặc bất kỳ link nào tìm thấy trong object
             const audioUrl = streamData["128"] || streamData["320"] || Object.values(streamData)[0];
             
             if (audioUrl && audioUrl !== "VIP") {
-                // Trả thẳng lệnh redirect về file mp3 sạch của CDN mở
                 return res.redirect(audioUrl);
             }
         }
-
-        // Nếu sập dải link trên, ép redirect về link nhạc mẫu chất lượng cao để giữ ứng dụng luôn chạy mượt
         return res.redirect("https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3");
-
     } catch (error) {
-        // Dự phòng tuyệt đối khi lỗi mạng, phát nhạc mẫu để tránh hiện lỗi tím làm crash giao diện
         return res.redirect("https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3");
-    }
-});
-
-        // 1. Nếu lấy được link nhạc thật của Zing
-        if (response.data && response.data.err === 0 && response.data.data && response.data.data["128"]) {
-            if (response.data.data["128"] !== "VIP") {
-                // Đẩy thẳng luồng âm thanh .mp3 về cho ReactPlayer
-                return res.redirect(response.data.data["128"]); 
-            }
-        }
-
-        // 2. Nếu dính VIP/Bản quyền -> Redirect sang luồng dự phòng mp3
-        return res.redirect(`https://api.mp3.zing.vn/api/streaming/audio/${id}/128`);
-
-    } catch (error) {
-        // Lỗi sập kết nối cũng đẩy thẳng về luồng mp3 dự phòng để cứu app
-        const id = req.query.id;
-        return res.redirect(`https://api.mp3.zing.vn/api/streaming/audio/${id}/128`);
     }
 });
 
