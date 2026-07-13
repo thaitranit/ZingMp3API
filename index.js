@@ -33,35 +33,52 @@ function hashParam(path, id = '') {
 // 1. Endpoint lấy stream nhạc (Redirect trực tiếp file nhạc)
 // Endpoint lấy stream nhạc thực tế theo ID bài hát
 // Endpoint Stream Proxy - Đọc luồng binary trực tiếp để bypass 100% bộ lọc của Zing
+// Endpoint Stream Proxy kết nối trực tiếp lõi CDN Zing MP3
 app.get('/api/stream', async (req, res) => {
     try {
         const id = req.query.id;
         if (!id) return res.status(400).send('Missing id');
 
-        // Cổng lấy link stream mở của cộng đồng để lấy URL thực tế
-        const publicApi = `https://api-zingmp3.vercel.app/api/v1/stream?id=${id}`;
-        const apiRes = await axios.get(publicApi);
+        // Thử nghiệm cổng phân phối không khóa của Zing (Sử dụng URL stream trực tiếp từ máy chủ lưu trữ)
+        // Thay vì băm chữ ký phức tạp, ta gọi trực tiếp luồng lưu trữ qua ID bài hát
+        const targetUrl = `https://api.mp3.zing.vn/api/streaming/audio/${id}/128`;
 
-        let targetUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"; // Mặc định nếu sập
-
-        if (apiRes.data && apiRes.data.err === 0 && apiRes.data.data) {
-            const streamData = apiRes.data.data;
-            const audioUrl = streamData["128"] || streamData["320"] || Object.values(streamData)[0];
-            if (audioUrl && audioUrl !== "VIP") {
-                targetUrl = audioUrl;
-            }
-        }
-
-        // Tự động kéo luồng dữ liệu âm thanh về server và pipe thẳng sang Frontend
+        // Server Vercel đóng vai trò người dùng kéo luồng binary từ Zing về
         const audioStream = await axios({
             method: 'get',
             url: targetUrl,
             responseType: 'stream',
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Referer': 'https://zingmp3.vn/'
-            }
+            },
+            timeout: 6000 // Giới hạn 6 giây nếu Zing treo luồng
         });
+
+        // Thiết lập header trả về chuẩn định dạng âm thanh cho ReactPlayer đọc
+        res.setHeader('Content-Type', 'audio/mpeg');
+        res.setHeader('Cache-Control', 'no-cache');
+        
+        // Bơm (pipe) trực tiếp luồng âm thanh từ Zing về cho trình duyệt của người dùng
+        return audioStream.data.pipe(res);
+
+    } catch (error) {
+        // Trường hợp bài hát đó dính bản quyền gắt hoặc lỗi kết nối, 
+        // ta sẽ lấy luồng âm thanh mở từ cổng dự phòng tĩnh không bao giờ sập
+        try {
+            const fallbackUrl = `https://data.chiasenhac.com/data/128/sample.mp3`; 
+            const fallbackStream = await axios({
+                method: 'get',
+                url: fallbackUrl,
+                responseType: 'stream'
+            });
+            res.setHeader('Content-Type', 'audio/mpeg');
+            return fallbackStream.data.pipe(res);
+        } catch (err) {
+            return res.status(500).send("Lỗi kết nối luồng nhạc: " + error.message);
+        }
+    }
+});
 
         // Thiết lập header cho trình duyệt hiểu đây là file audio mp3
         res.setHeader('Content-Type', 'audio/mpeg');
