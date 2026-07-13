@@ -30,7 +30,7 @@ function hashParam(path, id = '') {
     return { ctime, sig };
 }
 
-// 1. Endpoint lấy stream nhạc (Redirect trực tiếp luồng mp3 để ReactPlayer đọc được)
+// 1. Endpoint lấy stream nhạc (Redirect trực tiếp file nhạc)
 app.get('/api/stream', async (req, res) => {
     try {
         const id = req.query.id;
