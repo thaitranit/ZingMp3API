@@ -32,35 +32,11 @@ function hashParam(path, id = '') {
 
 // 1. Endpoint Stream Proxy - Kéo luồng âm thanh trực tiếp từ CDN Zing để bypass bộ lọc
 // Endpoint Stream Proxy - Tối ưu hóa fallback để triệt tiêu hoàn toàn lỗi 500
-app.get('/api/stream', async (req, res) => {
-    try {
-        const id = req.query.id;
-        if (!id) return res.status(400).send('Missing id');
-
-        const targetUrl = `https://api.mp3.zing.vn/api/streaming/audio/${id}/128`;
-
-        // Server thử kéo luồng trực tiếp từ Zing
-        const audioStream = await axios({
-            method: 'get',
-            url: targetUrl,
-            responseType: 'stream',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Referer': 'https://zingmp3.vn/'
-            },
-            timeout: 5000 // Giới hạn 5 giây để tránh treo request trên Serverless
-        });
-
-        res.setHeader('Content-Type', 'audio/mpeg');
-        res.setHeader('Cache-Control', 'no-cache');
-        
-        return audioStream.data.pipe(res);
-
-    } catch (error) {
-        // NẾU LỖI (Zing chặn IP server): Chuyển hướng thẳng trình duyệt sang file nhạc mẫu tĩnh bất tử
-        // Điều này giúp trình duyệt tự tải file mà không làm sập backend Node.js
-        return res.redirect("https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3");
-    }
+app.get('/api/stream', (req, res) => {
+    const id = req.query.id;
+    if (!id) return res.status(400).send('Missing id');
+    // Trả thẳng lệnh điều hướng về cổng cdn gốc nếu Frontend vẫn gọi qua đây
+    return res.redirect(`https://api.mp3.zing.vn/api/streaming/audio/${id}/128`);
 });
 
 // 2. Endpoint lấy chi tiết Playlist / Album
